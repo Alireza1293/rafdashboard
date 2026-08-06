@@ -377,9 +377,9 @@
     state.offsetX = 0;
     state.offsetY = 0;
     $('zoom').value = 1;
-    $('brightness').value = 103;
-    $('contrast').value = 104;
-    $('saturation').value = 99;
+    $('brightness').value = 100;
+    $('contrast').value = 100;
+    $('saturation').value = 100;
     updateRanges();
     render();
     showToast('تنظیمات تصویر بازنشانی شد.');
