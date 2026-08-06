@@ -22,6 +22,14 @@
     pointerStartY: 0,
     offsetStartX: 0,
     offsetStartY: 0,
+    dragTarget: 'photo',
+    hitAreas: [],
+    elementOffsets: {
+      logo: { x: 0, y: 0 },
+      handle: { x: 0, y: 0 },
+      faTitle: { x: 0, y: 0 },
+      enTitle: { x: 0, y: 0 }
+    },
     format: 'original'
   };
 
@@ -37,11 +45,73 @@
   const layoutScale = () => dimensions().width / 1080;
   const outputName = () => `${dimensions().width}x${dimensions().height}`;
 
+  function fitCanvasShell() {
+    const shell = $('canvasShell');
+    const stage = shell.parentElement;
+    const style = getComputedStyle(stage);
+    const availableWidth = stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const availableHeight = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    if (availableWidth <= 0 || availableHeight <= 0) return;
+    const { width, height } = dimensions();
+    const ratio = width / height;
+    let fittedWidth = availableWidth;
+    let fittedHeight = fittedWidth / ratio;
+    if (fittedHeight > availableHeight) {
+      fittedHeight = availableHeight;
+      fittedWidth = fittedHeight * ratio;
+    }
+    fittedWidth = Math.floor(fittedWidth);
+    fittedHeight = Math.floor(fittedHeight);
+    if (parseFloat(shell.style.width) === fittedWidth && parseFloat(shell.style.height) === fittedHeight) return;
+    shell.style.width = `${fittedWidth}px`;
+    shell.style.height = `${fittedHeight}px`;
+  }
+  function elementPosition(id, x, y) {
+    const offset = state.elementOffsets[id];
+    const scale = layoutScale();
+    return { x: x + offset.x * scale, y: y + offset.y * scale };
+  }
+
+  function addHitArea(id, x, y, width, height) {
+    const padding = 12 * layoutScale();
+    state.hitAreas.push({
+      id,
+      x: x - padding,
+      y: y - padding,
+      width: width + padding * 2,
+      height: height + padding * 2
+    });
+  }
+
+  function hitTarget(point) {
+    return [...state.hitAreas].reverse().find((area) =>
+      point.x >= area.x && point.x <= area.x + area.width &&
+      point.y >= area.y && point.y <= area.y + area.height
+    )?.id || 'photo';
+  }
+
+  function keepElementInside(id) {
+    const area = state.hitAreas.find((candidate) => candidate.id === id);
+    if (!area) return false;
+    const { width: W, height: H } = dimensions();
+    let dx = 0;
+    let dy = 0;
+    if (area.x < 0) dx = -area.x;
+    if (area.x + area.width > W) dx = W - area.x - area.width;
+    if (area.y < 0) dy = -area.y;
+    if (area.y + area.height > H) dy = H - area.y - area.height;
+    if (!dx && !dy) return false;
+    const offset = state.elementOffsets[id];
+    const scale = layoutScale();
+    offset.x += dx / scale;
+    offset.y += dy / scale;
+    return true;
+  }
+
   function applyFormat() {
     const { width, height, label } = dimensions();
     canvas.width = width;
     canvas.height = height;
-    $('canvasShell').style.setProperty('--canvas-ratio', `${width} / ${height}`);
     $('canvasMeta').textContent = state.format === 'original' && !state.photo
       ? 'ابعاد اصلی'
       : `${persianNumber(width)} × ${persianNumber(height)}`;
@@ -50,6 +120,7 @@
       : state.format === 'square' ? '۱:۱' : state.format === 'post' ? '۴:۵' : '۹:۱۶';
     $('downloadBtn').setAttribute('aria-label', `دانلود PNG ${label}`);
     constrainOffsets();
+    requestAnimationFrame(fitCanvasShell);
   }
 
   function showToast(message) {
@@ -162,10 +233,12 @@
     const scale = layoutScale();
     const width = number('logoWidth') * scale;
     const height = width * state.logo.height / state.logo.width;
+    const position = elementPosition('logo', W * 0.065, W * 0.063);
     ctx.save();
     ctx.globalAlpha = clamp(number('logoOpacity') / 100, 0, 1);
-    ctx.drawImage(state.logo, W * 0.065, W * 0.063, width, height);
+    ctx.drawImage(state.logo, position.x, position.y, width, height);
     ctx.restore();
+    addHitArea('logo', position.x, position.y, width, height);
   }
 
   function setTextShadow() {
@@ -190,8 +263,11 @@
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'ltr';
       ctx.font = `500 ${22 * scale}px Dana, Arial, sans-serif`;
-      ctx.fillText(handle, W * 0.067, W * 0.17);
+      const position = elementPosition('handle', W * 0.067, W * 0.17);
+      const metrics = ctx.measureText(handle);
+      ctx.fillText(handle, position.x, position.y);
       ctx.restore();
+      addHitArea('handle', position.x, position.y - 22 * scale, metrics.width, 28 * scale);
     }
 
     if (faTitle) {
@@ -200,10 +276,14 @@
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'rtl';
-      ctx.font = `600 ${number('faTitleSize') * scale}px Dana, Tahoma, sans-serif`;
+      const fontSize = number('faTitleSize') * scale;
+      ctx.font = `600 ${fontSize}px Dana, Tahoma, sans-serif`;
+      const position = elementPosition('faTitle', W - 83 * scale, H - 128 * scale);
+      const metrics = ctx.measureText(faTitle);
       setTextShadow();
-      ctx.fillText(faTitle, W - 83 * scale, H - 128 * scale);
+      ctx.fillText(faTitle, position.x, position.y);
       ctx.restore();
+      addHitArea('faTitle', position.x - metrics.width, position.y - fontSize, metrics.width, fontSize * 1.25);
     }
 
     if (enTitle) {
@@ -212,10 +292,14 @@
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'ltr';
-      ctx.font = `400 ${number('enTitleSize') * scale}px Dana, Arial, sans-serif`;
+      const fontSize = number('enTitleSize') * scale;
+      ctx.font = `400 ${fontSize}px Dana, Arial, sans-serif`;
+      const position = elementPosition('enTitle', W - 83 * scale, H - 83 * scale);
+      const metrics = ctx.measureText(enTitle);
       setTextShadow();
-      ctx.fillText(enTitle, W - 83 * scale, H - 83 * scale);
+      ctx.fillText(enTitle, position.x, position.y);
       ctx.restore();
+      addHitArea('enTitle', position.x - metrics.width, position.y - fontSize, metrics.width, fontSize * 1.3);
     }
   }
 
@@ -238,6 +322,7 @@
 
   function render() {
     const { width: W, height: H } = dimensions();
+    state.hitAreas = [];
     ctx.clearRect(0, 0, W, H);
     drawPhoto();
     if (state.photo) {
@@ -365,20 +450,37 @@
     const point = canvasPoint(event);
     canvas.setPointerCapture(event.pointerId);
     state.dragging = true;
+    state.dragTarget = hitTarget(point);
     state.pointerStartX = point.x;
     state.pointerStartY = point.y;
-    state.offsetStartX = state.offsetX;
-    state.offsetStartY = state.offsetY;
+    const activeOffset = state.dragTarget === 'photo'
+      ? { x: state.offsetX, y: state.offsetY }
+      : state.elementOffsets[state.dragTarget];
+    state.offsetStartX = activeOffset.x;
+    state.offsetStartY = activeOffset.y;
     canvas.classList.add('dragging');
+    canvas.classList.remove('element-hover');
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (!state.dragging) return;
     const point = canvasPoint(event);
-    state.offsetX = state.offsetStartX + point.x - state.pointerStartX;
-    state.offsetY = state.offsetStartY + point.y - state.pointerStartY;
-    constrainOffsets();
+    if (!state.dragging) {
+      canvas.classList.toggle('element-hover', hitTarget(point) !== 'photo');
+      return;
+    }
+    const deltaX = point.x - state.pointerStartX;
+    const deltaY = point.y - state.pointerStartY;
+    if (state.dragTarget === 'photo') {
+      state.offsetX = state.offsetStartX + deltaX;
+      state.offsetY = state.offsetStartY + deltaY;
+      constrainOffsets();
+    } else {
+      const scale = layoutScale();
+      state.elementOffsets[state.dragTarget].x = state.offsetStartX + deltaX / scale;
+      state.elementOffsets[state.dragTarget].y = state.offsetStartY + deltaY / scale;
+    }
     render();
+    if (state.dragTarget !== 'photo' && keepElementInside(state.dragTarget)) render();
   });
 
   function stopDragging(event) {
@@ -395,18 +497,31 @@
     if (!state.photo || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const step = event.shiftKey ? 30 : 10;
-    if (event.key === 'ArrowLeft') state.offsetX -= step;
-    if (event.key === 'ArrowRight') state.offsetX += step;
-    if (event.key === 'ArrowUp') state.offsetY -= step;
-    if (event.key === 'ArrowDown') state.offsetY += step;
-    constrainOffsets();
+    const offset = state.dragTarget === 'photo'
+      ? { x: state.offsetX, y: state.offsetY }
+      : state.elementOffsets[state.dragTarget];
+    if (event.key === 'ArrowLeft') offset.x -= step;
+    if (event.key === 'ArrowRight') offset.x += step;
+    if (event.key === 'ArrowUp') offset.y -= step;
+    if (event.key === 'ArrowDown') offset.y += step;
+    if (state.dragTarget === 'photo') {
+      state.offsetX = offset.x;
+      state.offsetY = offset.y;
+      constrainOffsets();
+    }
     render();
+    if (state.dragTarget !== 'photo' && keepElementInside(state.dragTarget)) render();
   });
 
   $('resetBtn').addEventListener('click', () => {
     state.zoom = 1;
     state.offsetX = 0;
     state.offsetY = 0;
+    Object.values(state.elementOffsets).forEach((offset) => {
+      offset.x = 0;
+      offset.y = 0;
+    });
+    state.dragTarget = 'photo';
     $('zoom').value = 1;
     $('brightness').value = 100;
     $('contrast').value = 100;
@@ -438,8 +553,14 @@
 
   Promise.all([
     document.fonts.load('600 38px Dana'),
-    fileToImage('assets/images/logo.png').then((logo) => { state.logo = logo; })
+    fileToImage('assets/images/logo-20260806.png').then((logo) => { state.logo = logo; })
   ]).finally(() => render());
+
+  let previewResizeFrame = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(previewResizeFrame);
+    previewResizeFrame = requestAnimationFrame(fitCanvasShell);
+  }).observe(document.querySelector('.canvas-stage'));
 
   applyFormat();
   updateRanges();
