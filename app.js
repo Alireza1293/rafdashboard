@@ -24,6 +24,7 @@
     offsetStartY: 0,
     dragTarget: 'photo',
     hitAreas: [],
+    guides: [],
     elementOffsets: {
       logo: { x: 0, y: 0 },
       handle: { x: 0, y: 0 },
@@ -79,7 +80,8 @@
       x: x - padding,
       y: y - padding,
       width: width + padding * 2,
-      height: height + padding * 2
+      height: height + padding * 2,
+      visual: { x, y, width, height }
     });
   }
 
@@ -106,6 +108,87 @@
     offset.x += dx / scale;
     offset.y += dy / scale;
     return true;
+  }
+
+  function closestSnap(points, targets, threshold) {
+    let match = null;
+    points.forEach((point) => {
+      targets.forEach((target) => {
+        const distance = target - point;
+        if (Math.abs(distance) <= threshold && (!match || Math.abs(distance) < Math.abs(match.distance))) {
+          match = { distance, target };
+        }
+      });
+    });
+    return match;
+  }
+
+  function snapPhotoToCanvas() {
+    const { width: W, height: H } = dimensions();
+    const threshold = 10 * layoutScale();
+    state.guides = [];
+    if (Math.abs(state.offsetX) <= threshold) {
+      state.offsetX = 0;
+      state.guides.push({ axis: 'x', position: W / 2 });
+    }
+    if (Math.abs(state.offsetY) <= threshold) {
+      state.offsetY = 0;
+      state.guides.push({ axis: 'y', position: H / 2 });
+    }
+  }
+
+  function snapElement(id) {
+    const active = state.hitAreas.find((area) => area.id === id);
+    if (!active) return false;
+    const { width: W, height: H } = dimensions();
+    const threshold = 10 * layoutScale();
+    const xTargets = [0, W / 2, W];
+    const yTargets = [0, H / 2, H];
+
+    state.hitAreas.forEach((area) => {
+      if (area.id === id) return;
+      const box = area.visual;
+      xTargets.push(box.x, box.x + box.width / 2, box.x + box.width);
+      yTargets.push(box.y, box.y + box.height / 2, box.y + box.height);
+    });
+
+    const box = active.visual;
+    const xSnap = closestSnap([box.x, box.x + box.width / 2, box.x + box.width], xTargets, threshold);
+    const ySnap = closestSnap([box.y, box.y + box.height / 2, box.y + box.height], yTargets, threshold);
+    state.guides = [];
+    const offset = state.elementOffsets[id];
+    const scale = layoutScale();
+    if (xSnap) {
+      offset.x += xSnap.distance / scale;
+      state.guides.push({ axis: 'x', position: xSnap.target });
+    }
+    if (ySnap) {
+      offset.y += ySnap.distance / scale;
+      state.guides.push({ axis: 'y', position: ySnap.target });
+    }
+    return Boolean(xSnap || ySnap);
+  }
+
+  function drawGuides() {
+    if (!state.guides.length) return;
+    const { width: W, height: H } = dimensions();
+    const scale = layoutScale();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(39, 201, 130, .95)';
+    ctx.lineWidth = Math.max(1, 1.5 * scale);
+    ctx.setLineDash([8 * scale, 6 * scale]);
+    state.guides.forEach((guide) => {
+      ctx.beginPath();
+      if (guide.axis === 'x') {
+        ctx.moveTo(guide.position, 0);
+        ctx.lineTo(guide.position, H);
+      } else {
+        ctx.moveTo(0, guide.position);
+        ctx.lineTo(W, guide.position);
+      }
+      ctx.stroke();
+    });
+    ctx.restore();
   }
 
   function applyFormat() {
@@ -329,6 +412,7 @@
       drawFrame();
       drawLogo();
       drawText();
+      drawGuides();
     }
     updateStatus();
   }
@@ -474,19 +558,27 @@
       state.offsetX = state.offsetStartX + deltaX;
       state.offsetY = state.offsetStartY + deltaY;
       constrainOffsets();
+      snapPhotoToCanvas();
     } else {
       const scale = layoutScale();
       state.elementOffsets[state.dragTarget].x = state.offsetStartX + deltaX / scale;
       state.elementOffsets[state.dragTarget].y = state.offsetStartY + deltaY / scale;
     }
     render();
-    if (state.dragTarget !== 'photo' && keepElementInside(state.dragTarget)) render();
+    if (state.dragTarget !== 'photo') {
+      const snapped = snapElement(state.dragTarget);
+      render();
+      if (keepElementInside(state.dragTarget)) render();
+      if (!snapped) state.guides = [];
+    }
   });
 
   function stopDragging(event) {
     if (!state.dragging) return;
     state.dragging = false;
+    state.guides = [];
     canvas.classList.remove('dragging');
+    render();
     try { canvas.releasePointerCapture(event.pointerId); } catch (_) { /* already released */ }
   }
 
@@ -522,6 +614,7 @@
       offset.y = 0;
     });
     state.dragTarget = 'photo';
+    state.guides = [];
     $('zoom').value = 1;
     $('brightness').value = 100;
     $('contrast').value = 100;
@@ -533,6 +626,7 @@
 
   $('downloadBtn').addEventListener('click', () => {
     if (!state.photo) return;
+    state.guides = [];
     render();
     canvas.toBlob((blob) => {
       if (!blob) {
