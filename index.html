@@ -37,7 +37,7 @@
         <span class="step-badge">۱:۱</span>
       </div>
 
-      <p class="intro">عکس را انتخاب کن، قاب را تنظیم کن و یک PNG باکیفیت ۱۰۸۰ پیکسلی تحویل بگیر.</p>
+      <p class="intro">عکس را انتخاب کن، قاب را تنظیم کن و یک PNG باکیفیت تحویل بگیر.</p>
 
       <section class="control-section open" data-section>
         <button class="section-toggle" type="button" aria-expanded="true">
@@ -47,7 +47,11 @@
         <div class="section-body">
           <div class="format-picker" role="radiogroup" aria-label="ابعاد خروجی">
             <label class="format-option">
-              <input type="radio" name="format" value="post" checked>
+              <input type="radio" name="format" value="original" checked>
+              <span><strong>اصلی</strong><small>ابعاد عکس</small></span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="format" value="post">
               <span><strong>پست</strong><small>۱۰۸۰ × ۱۳۵۰</small></span>
             </label>
             <label class="format-option">
@@ -104,7 +108,7 @@
         <div class="section-body range-list">
           <label class="range-control">
             <span class="range-head"><span>بزرگ‌نمایی</span><output id="zoomOut">۱.۰۰×</output></span>
-            <input id="zoom" type="range" min="1" max="3" step="0.01" value="1">
+            <input id="zoom" type="range" min="0.25" max="3" step="0.01" value="1">
           </label>
           <label class="range-control">
             <span class="range-head"><span>روشنایی</span><output id="brightnessOut">۱۰۰٪</output></span>
@@ -120,7 +124,7 @@
           </label>
           <div class="drag-hint">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20m0-20-3 3m3-3 3 3m-3 17-3-3m3 3 3-3M2 12h20M2 12l3-3m-3 3 3 3m17-3-3-3m3 3-3 3"/></svg>
-            برای جابه‌جایی عکس، آن را روی پیش‌نمایش بکش.
+            عکس را روی پیش‌نمایش به هر جهت بکش؛ برای تنظیم دقیق‌تر از کلیدهای جهت‌دار استفاده کن.
           </div>
         </div>
       </section>
@@ -170,7 +174,7 @@
 
       <div class="canvas-stage">
         <div class="canvas-shell" id="canvasShell">
-          <canvas id="canvas" width="1080" height="1350" aria-label="پیش‌نمایش محصول"></canvas>
+          <canvas id="canvas" width="1080" height="1350" tabindex="0" aria-label="پیش‌نمایش محصول؛ برای جابه‌جایی بکشید یا از کلیدهای جهت‌دار استفاده کنید"></canvas>
           <label class="empty-state" id="emptyState" for="photoInput">
             <span class="empty-art">
               <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M7 35V13a4 4 0 0 1 4-4h26a4 4 0 0 1 4 4v22a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4Z"/><circle cx="17" cy="18" r="4"/><path d="m9 34 9-9 6 6 5-5 10 10"/></svg>

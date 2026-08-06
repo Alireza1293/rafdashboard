@@ -2,6 +2,7 @@
   'use strict';
 
   const formats = {
+    original: { width: 1080, height: 1080, label: 'ابعاد اصلی' },
     post: { width: 1080, height: 1350, label: 'پست' },
     story: { width: 1080, height: 1920, label: 'استوری' },
     square: { width: 1080, height: 1080, label: 'مربع' }
@@ -21,13 +22,19 @@
     pointerStartY: 0,
     offsetStartX: 0,
     offsetStartY: 0,
-    format: 'post'
+    format: 'original'
   };
 
   const number = (id) => Number($(id).value) || 0;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const persianNumber = (value) => new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(value);
-  const dimensions = () => formats[state.format];
+  const dimensions = () => {
+    if (state.format === 'original' && state.photo) {
+      return { width: state.photo.width, height: state.photo.height, label: 'ابعاد اصلی' };
+    }
+    return formats[state.format];
+  };
+  const layoutScale = () => dimensions().width / 1080;
   const outputName = () => `${dimensions().width}x${dimensions().height}`;
 
   function applyFormat() {
@@ -35,8 +42,12 @@
     canvas.width = width;
     canvas.height = height;
     $('canvasShell').style.setProperty('--canvas-ratio', `${width} / ${height}`);
-    $('canvasMeta').textContent = `${persianNumber(width)} × ${persianNumber(height)}`;
-    document.querySelector('.step-badge').textContent = state.format === 'square' ? '۱:۱' : state.format === 'post' ? '۴:۵' : '۹:۱۶';
+    $('canvasMeta').textContent = state.format === 'original' && !state.photo
+      ? 'ابعاد اصلی'
+      : `${persianNumber(width)} × ${persianNumber(height)}`;
+    document.querySelector('.step-badge').textContent = state.format === 'original'
+      ? 'اصل'
+      : state.format === 'square' ? '۱:۱' : state.format === 'post' ? '۴:۵' : '۹:۱۶';
     $('downloadBtn').setAttribute('aria-label', `دانلود PNG ${label}`);
     constrainOffsets();
   }
@@ -110,8 +121,11 @@
     const geometry = photoGeometry();
     if (!geometry) return;
     const { width: W, height: H } = dimensions();
-    const maxX = Math.max(0, (geometry.width - W) / 2);
-    const maxY = Math.max(0, (geometry.height - H) / 2);
+    // When the photo is larger, keep the canvas covered. When it is smaller
+    // after zooming out, keep the whole photo inside the canvas while still
+    // allowing it to be positioned anywhere in the available space.
+    const maxX = Math.abs(geometry.width - W) / 2;
+    const maxY = Math.abs(geometry.height - H) / 2;
     state.offsetX = clamp(state.offsetX, -maxX, maxX);
     state.offsetY = clamp(state.offsetY, -maxY, maxY);
   }
@@ -131,12 +145,13 @@
   }
 
   function drawFrame() {
-    const inset = number('borderInset');
+    const scale = layoutScale();
+    const inset = number('borderInset') * scale;
     ctx.save();
     ctx.strokeStyle = `rgba(255,255,255,${clamp(number('borderOpacity') / 100, 0, 1)})`;
-    ctx.lineWidth = Math.max(1, number('borderWidth'));
+    ctx.lineWidth = Math.max(1, number('borderWidth') * scale);
     const { width: W, height: H } = dimensions();
-    roundedRectPath(ctx, inset, inset, W - inset * 2, H - inset * 2, number('borderRadius'));
+    roundedRectPath(ctx, inset, inset, W - inset * 2, H - inset * 2, number('borderRadius') * scale);
     ctx.stroke();
     ctx.restore();
   }
@@ -144,7 +159,8 @@
   function drawLogo() {
     if (!state.logo) return;
     const { width: W } = dimensions();
-    const width = number('logoWidth');
+    const scale = layoutScale();
+    const width = number('logoWidth') * scale;
     const height = width * state.logo.height / state.logo.width;
     ctx.save();
     ctx.globalAlpha = clamp(number('logoOpacity') / 100, 0, 1);
@@ -161,6 +177,7 @@
 
   function drawText() {
     const { width: W, height: H } = dimensions();
+    const scale = layoutScale();
     const handle = $('handle').value.trim();
     const faTitle = $('faTitle').value.trim();
     const enTitle = $('enTitle').value.trim();
@@ -172,7 +189,7 @@
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'ltr';
-      ctx.font = '500 22px Dana, Arial, sans-serif';
+      ctx.font = `500 ${22 * scale}px Dana, Arial, sans-serif`;
       ctx.fillText(handle, W * 0.067, W * 0.17);
       ctx.restore();
     }
@@ -183,9 +200,9 @@
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'rtl';
-      ctx.font = `600 ${number('faTitleSize')}px Dana, Tahoma, sans-serif`;
+      ctx.font = `600 ${number('faTitleSize') * scale}px Dana, Tahoma, sans-serif`;
       setTextShadow();
-      ctx.fillText(faTitle, W - 83, H - 128);
+      ctx.fillText(faTitle, W - 83 * scale, H - 128 * scale);
       ctx.restore();
     }
 
@@ -195,9 +212,9 @@
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.direction = 'ltr';
-      ctx.font = `400 ${number('enTitleSize')}px Dana, Arial, sans-serif`;
+      ctx.font = `400 ${number('enTitleSize') * scale}px Dana, Arial, sans-serif`;
       setTextShadow();
-      ctx.fillText(enTitle, W - 83, H - 83);
+      ctx.fillText(enTitle, W - 83 * scale, H - 83 * scale);
       ctx.restore();
     }
   }
@@ -208,11 +225,12 @@
       return;
     }
     const warnings = [];
+    const scale = layoutScale();
     ctx.save();
-    ctx.font = `600 ${number('faTitleSize')}px Dana, Tahoma, sans-serif`;
-    if (ctx.measureText($('faTitle').value.trim()).width > 430) warnings.push('عنوان فارسی بلند است.');
-    ctx.font = `400 ${number('enTitleSize')}px Dana, Arial, sans-serif`;
-    if (ctx.measureText($('enTitle').value.trim()).width > 360) warnings.push('عنوان انگلیسی بلند است.');
+    ctx.font = `600 ${number('faTitleSize') * scale}px Dana, Tahoma, sans-serif`;
+    if (ctx.measureText($('faTitle').value.trim()).width > 430 * scale) warnings.push('عنوان فارسی بلند است.');
+    ctx.font = `400 ${number('enTitleSize') * scale}px Dana, Arial, sans-serif`;
+    if (ctx.measureText($('enTitle').value.trim()).width > 360 * scale) warnings.push('عنوان انگلیسی بلند است.');
     ctx.restore();
     if (warnings.length) setStatus('نیاز به بررسی', warnings.join(' '), true);
     else setStatus('خروجی آماده است', 'برای دریافت تصویر باکیفیت، روی «دانلود PNG» بزن.');
@@ -250,6 +268,7 @@
       $('photoLabel').textContent = file.name;
       $('emptyState').classList.add('hidden');
       $('downloadBtn').disabled = false;
+      applyFormat();
       updateRanges();
       render();
     } catch (_) {
@@ -371,6 +390,18 @@
 
   canvas.addEventListener('pointerup', stopDragging);
   canvas.addEventListener('pointercancel', stopDragging);
+
+  canvas.addEventListener('keydown', (event) => {
+    if (!state.photo || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 30 : 10;
+    if (event.key === 'ArrowLeft') state.offsetX -= step;
+    if (event.key === 'ArrowRight') state.offsetX += step;
+    if (event.key === 'ArrowUp') state.offsetY -= step;
+    if (event.key === 'ArrowDown') state.offsetY += step;
+    constrainOffsets();
+    render();
+  });
 
   $('resetBtn').addEventListener('click', () => {
     state.zoom = 1;
