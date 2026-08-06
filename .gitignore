@@ -1,0 +1,5 @@
+# Source font/logo drops kept locally; the app uses the curated copies in assets/.
+/*.woff*
+/*.ttf*
+/*.scss*
+/logo.png
