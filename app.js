@@ -374,9 +374,9 @@
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
-      ctx.direction = 'ltr';
+      ctx.direction = 'rtl';
       const fontSize = number('enTitleSize') * scale;
-      ctx.font = `400 ${fontSize}px Dana, Arial, sans-serif`;
+      ctx.font = `500 ${fontSize}px Dana, Tahoma, sans-serif`;
       const position = elementPosition('enTitle', W - 83 * scale, H - 83 * scale);
       const metrics = ctx.measureText(enTitle);
       setTextShadow();
@@ -396,8 +396,8 @@
     ctx.save();
     ctx.font = `600 ${number('faTitleSize') * scale}px Dana, Tahoma, sans-serif`;
     if (ctx.measureText($('faTitle').value.trim()).width > 430 * scale) warnings.push('عنوان فارسی بلند است.');
-    ctx.font = `400 ${number('enTitleSize') * scale}px Dana, Arial, sans-serif`;
-    if (ctx.measureText($('enTitle').value.trim()).width > 360 * scale) warnings.push('عنوان انگلیسی بلند است.');
+    ctx.font = `500 ${number('enTitleSize') * scale}px Dana, Tahoma, sans-serif`;
+    if (ctx.measureText($('enTitle').value.trim()).width > 360 * scale) warnings.push('مدل محصول بلند است.');
     ctx.restore();
     if (warnings.length) setStatus('نیاز به بررسی', warnings.join(' '), true);
     else setStatus('خروجی آماده است', 'برای دریافت تصویر باکیفیت، روی «دانلود PNG» بزن.');
@@ -647,6 +647,7 @@
 
   Promise.all([
     document.fonts.load('600 38px Dana'),
+    document.fonts.load('500 20px Dana'),
     fileToImage('assets/images/logo-20260806.png').then((logo) => { state.logo = logo; })
   ]).finally(() => render());
 
