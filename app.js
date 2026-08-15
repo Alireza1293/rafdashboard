@@ -45,6 +45,113 @@
   };
   const layoutScale = () => dimensions().width / 1080;
   const outputName = () => `${dimensions().width}x${dimensions().height}`;
+  const brandStorageKey = 'raf-product-template-brand-v1';
+  const historyInputIds = [
+    'faTitle', 'enTitle', 'handle', 'zoom', 'brightness', 'contrast', 'saturation',
+    'borderInset', 'borderRadius', 'borderWidth', 'borderOpacity', 'logoWidth',
+    'logoOpacity', 'faTitleSize', 'enTitleSize', 'textShadow', 'safeZones'
+  ];
+  const brandInputIds = [
+    'handle', 'borderInset', 'borderRadius', 'borderWidth', 'borderOpacity',
+    'logoWidth', 'logoOpacity', 'faTitleSize', 'enTitleSize', 'textShadow', 'safeZones'
+  ];
+  const history = [];
+  let historyIndex = -1;
+  let restoringHistory = false;
+
+  function readInputs(ids) {
+    return Object.fromEntries(ids.map((id) => {
+      const input = $(id);
+      return [id, input.type === 'checkbox' ? input.checked : input.value];
+    }));
+  }
+
+  function writeInputs(values) {
+    Object.entries(values || {}).forEach(([id, value]) => {
+      const input = $(id);
+      if (!input) return;
+      if (input.type === 'checkbox') input.checked = Boolean(value);
+      else input.value = value;
+    });
+  }
+
+  function cloneOffsets(offsets = state.elementOffsets) {
+    return Object.fromEntries(Object.entries(offsets).map(([key, value]) => [key, { ...value }]));
+  }
+
+  function snapshot() {
+    return {
+      inputs: readInputs(historyInputIds),
+      format: state.format,
+      zoom: state.zoom,
+      offsetX: state.offsetX,
+      offsetY: state.offsetY,
+      dragTarget: state.dragTarget,
+      elementOffsets: cloneOffsets()
+    };
+  }
+
+  function updateHistoryButtons() {
+    $('undoBtn').disabled = historyIndex <= 0;
+    $('redoBtn').disabled = historyIndex < 0 || historyIndex >= history.length - 1;
+  }
+
+  function resetHistory() {
+    history.splice(0, history.length, snapshot());
+    historyIndex = 0;
+    updateHistoryButtons();
+  }
+
+  function recordHistory() {
+    if (restoringHistory) return;
+    const next = snapshot();
+    const current = history[historyIndex];
+    if (current && JSON.stringify(current) === JSON.stringify(next)) return;
+    history.splice(historyIndex + 1);
+    history.push(next);
+    if (history.length > 30) history.shift();
+    historyIndex = history.length - 1;
+    updateHistoryButtons();
+  }
+
+  function restoreHistory(index) {
+    const item = history[index];
+    if (!item) return;
+    restoringHistory = true;
+    writeInputs(item.inputs);
+    state.format = item.format;
+    state.zoom = item.zoom;
+    state.offsetX = item.offsetX;
+    state.offsetY = item.offsetY;
+    state.dragTarget = item.dragTarget || 'photo';
+    state.elementOffsets = cloneOffsets(item.elementOffsets);
+    document.querySelector(`input[name="format"][value="${state.format}"]`).checked = true;
+    applyFormat();
+    updateRanges();
+    render();
+    historyIndex = index;
+    restoringHistory = false;
+    updateHistoryButtons();
+    saveBrandPreset();
+  }
+
+  function saveBrandPreset() {
+    try {
+      localStorage.setItem(brandStorageKey, JSON.stringify({
+        inputs: readInputs(brandInputIds),
+        elementOffsets: cloneOffsets()
+      }));
+    } catch (_) { /* Storage can be unavailable in private browsing. */ }
+  }
+
+  function restoreBrandPreset() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(brandStorageKey) || 'null');
+      if (!saved) return;
+      writeInputs(saved.inputs);
+      if (saved.elementOffsets) state.elementOffsets = cloneOffsets(saved.elementOffsets);
+    } catch (_) { /* Ignore an invalid or unavailable saved preset. */ }
+  }
 
   function fitCanvasShell() {
     const shell = $('canvasShell');
@@ -188,6 +295,21 @@
       }
       ctx.stroke();
     });
+    ctx.restore();
+  }
+
+  function drawSafeZones() {
+    if (!$('safeZones').checked || !['post', 'story'].includes(state.format)) return;
+    const { width: W, height: H } = dimensions();
+    const scale = layoutScale();
+    const inset = W * 0.055;
+    const top = state.format === 'story' ? H * 0.14 : H * 0.045;
+    const bottom = state.format === 'story' ? H * 0.16 : H * 0.09;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 165, 59, .8)';
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.setLineDash([7 * scale, 5 * scale]);
+    ctx.strokeRect(inset, top, W - inset * 2, H - top - bottom);
     ctx.restore();
   }
 
@@ -403,7 +525,7 @@
     else setStatus('خروجی آماده است', 'برای دریافت تصویر باکیفیت، روی «دانلود PNG» بزن.');
   }
 
-  function render() {
+  function render({ showOverlays = true } = {}) {
     const { width: W, height: H } = dimensions();
     state.hitAreas = [];
     ctx.clearRect(0, 0, W, H);
@@ -412,7 +534,10 @@
       drawFrame();
       drawLogo();
       drawText();
-      drawGuides();
+      if (showOverlays) {
+        drawSafeZones();
+        drawGuides();
+      }
     }
     updateStatus();
   }
@@ -437,9 +562,11 @@
       $('photoLabel').textContent = file.name;
       $('emptyState').classList.add('hidden');
       $('downloadBtn').disabled = false;
+      $('downloadAllBtn').disabled = false;
       applyFormat();
       updateRanges();
       render();
+      resetHistory();
     } catch (_) {
       setStatus('خطا در خواندن فایل', 'یک تصویر دیگر را امتحان کن.', true);
     }
@@ -484,11 +611,16 @@
       updateRanges();
       render();
     });
+    $(id).addEventListener('change', recordHistory);
   });
 
-  ['faTitle', 'enTitle', 'handle', 'borderInset', 'borderRadius', 'borderWidth', 'borderOpacity', 'logoWidth', 'logoOpacity', 'faTitleSize', 'enTitleSize', 'textShadow'].forEach((id) => {
+  ['faTitle', 'enTitle', 'handle', 'borderInset', 'borderRadius', 'borderWidth', 'borderOpacity', 'logoWidth', 'logoOpacity', 'faTitleSize', 'enTitleSize', 'textShadow', 'safeZones'].forEach((id) => {
     $(id).addEventListener('input', render);
-    $(id).addEventListener('change', render);
+    $(id).addEventListener('change', () => {
+      render();
+      recordHistory();
+      if (brandInputIds.includes(id)) saveBrandPreset();
+    });
   });
 
   document.querySelectorAll('input[name="format"]').forEach((input) => {
@@ -497,6 +629,7 @@
       state.format = input.value;
       applyFormat();
       render();
+      recordHistory();
     });
   });
 
@@ -579,6 +712,8 @@
     state.guides = [];
     canvas.classList.remove('dragging');
     render();
+    recordHistory();
+    saveBrandPreset();
     try { canvas.releasePointerCapture(event.pointerId); } catch (_) { /* already released */ }
   }
 
@@ -603,6 +738,8 @@
     }
     render();
     if (state.dragTarget !== 'photo' && keepElementInside(state.dragTarget)) render();
+    recordHistory();
+    saveBrandPreset();
   });
 
   $('resetBtn').addEventListener('click', () => {
@@ -621,28 +758,75 @@
     $('saturation').value = 100;
     updateRanges();
     render();
+    recordHistory();
+    saveBrandPreset();
     showToast('تنظیمات تصویر بازنشانی شد.');
   });
+
+  $('undoBtn').addEventListener('click', () => restoreHistory(historyIndex - 1));
+  $('redoBtn').addEventListener('click', () => restoreHistory(historyIndex + 1));
+
+  document.addEventListener('keydown', (event) => {
+    const isShortcut = event.metaKey || event.ctrlKey;
+    const isEditable = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    if (!isShortcut || isEditable) return;
+    if (event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      restoreHistory(event.shiftKey ? historyIndex + 1 : historyIndex - 1);
+    } else if (event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      restoreHistory(historyIndex + 1);
+    }
+  });
+
+  function canvasBlob() {
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  }
+
+  function downloadBlob(blob, filename) {
+    if (!blob) return false;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return true;
+  }
 
   $('downloadBtn').addEventListener('click', () => {
     if (!state.photo) return;
     state.guides = [];
+    render({ showOverlays: false });
+    canvasBlob().then((blob) => {
+      if (!downloadBlob(blob, `${state.photoName}-raf-${outputName()}.png`)) showToast('ساخت فایل ناموفق بود.');
+      else showToast('فایل PNG آماده شد.');
+      render();
+    });
+  });
+
+  $('downloadAllBtn').addEventListener('click', async () => {
+    if (!state.photo) return;
+    const previousFormat = state.format;
+    const previousGuides = state.guides;
+    $('downloadAllBtn').disabled = true;
+    state.guides = [];
+    for (const format of ['post', 'story', 'square']) {
+      state.format = format;
+      applyFormat();
+      render({ showOverlays: false });
+      const blob = await canvasBlob();
+      downloadBlob(blob, `${state.photoName}-raf-${format}-${outputName()}.png`);
+    }
+    state.format = previousFormat;
+    state.guides = previousGuides;
+    document.querySelector(`input[name="format"][value="${state.format}"]`).checked = true;
+    applyFormat();
     render();
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        showToast('ساخت فایل ناموفق بود.');
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${state.photoName}-raf-${outputName()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
-      showToast('فایل PNG آماده شد.');
-    }, 'image/png');
+    $('downloadAllBtn').disabled = false;
+    showToast('سه خروجی آماده شد.');
   });
 
   Promise.all([
@@ -656,7 +840,9 @@
     previewResizeFrame = requestAnimationFrame(fitCanvasShell);
   }).observe(document.querySelector('.canvas-stage'));
 
+  restoreBrandPreset();
   applyFormat();
   updateRanges();
   render();
+  resetHistory();
 })();

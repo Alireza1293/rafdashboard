@@ -113,14 +113,19 @@ input[type="range"]::-moz-range-thumb{width:9px;height:9px;border-radius:50%;bac
 .switch-row i:after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;right:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .switch-row input:checked+i{background:var(--accent)}
 .switch-row input:checked+i:after{transform:translateX(-16px)}
+.brand-save-note{margin:0;padding:10px 11px;border-radius:10px;background:#f5f5f1;color:var(--muted);font-size:9px;line-height:1.7}
 
 .editor-actions{display:grid;grid-template-columns:.8fr 1.2fr;gap:10px;padding-top:18px;border-top:1px solid var(--line)}
+.history-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
 .button{border:0;border-radius:12px;height:46px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s ease}
 .button svg{width:17px;height:17px}
 .button.primary{background:var(--accent);color:#fff;box-shadow:0 9px 22px rgba(51,70,58,.18)}
 .button.primary:hover:not(:disabled){background:#293a2f;transform:translateY(-1px)}
 .button.secondary{background:#eeede8;color:#55584f}
 .button.secondary:hover{background:#e5e4dd}
+.button.tertiary{height:38px;background:#f4f3ee;color:#62655c;font-size:10px}
+.button.tertiary:hover:not(:disabled){background:#e9e8e2}
+.wide-action{grid-column:1/-1}
 .button:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}
 
 .preview-area{min-width:0;border-radius:var(--radius);padding:18px;min-height:calc(100vh - 124px);display:flex;flex-direction:column}

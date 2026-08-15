@@ -148,9 +148,25 @@
             <input id="textShadow" type="checkbox" checked>
             <i aria-hidden="true"></i>
           </label>
+          <label class="switch-row field-wide">
+            <span><strong>محدوده امن اینستاگرام</strong><small>راهنمای غیرقابل‌دانلود برای پست و استوری</small></span>
+            <input id="safeZones" type="checkbox" checked>
+            <i aria-hidden="true"></i>
+          </label>
+          <p class="brand-save-note field-wide">تنظیمات برند و موقعیت عناصر به‌صورت خودکار روی همین دستگاه ذخیره می‌شوند.</p>
         </div>
       </section>
 
+      <div class="history-actions" aria-label="تاریخچه و خروجی سریع">
+        <button id="undoBtn" class="button tertiary" type="button" disabled title="بازگردانی (Cmd/Ctrl + Z)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6"/></svg>
+          بازگردانی
+        </button>
+        <button id="redoBtn" class="button tertiary" type="button" disabled title="انجام دوباره (Cmd/Ctrl + Shift + Z)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5m5-5H10a6 6 0 0 0-6 6"/></svg>
+          انجام دوباره
+        </button>
+      </div>
       <div class="editor-actions">
         <button id="resetBtn" class="button secondary" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
@@ -159,6 +175,10 @@
         <button id="downloadBtn" class="button primary" type="button" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
           دانلود PNG
+        </button>
+        <button id="downloadAllBtn" class="button tertiary wide-action" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/><path d="M4 7h2m12 0h2M4 12h2m12 0h2"/></svg>
+          خروجی پست، استوری و مربع
         </button>
       </div>
     </aside>
